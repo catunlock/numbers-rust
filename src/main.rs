@@ -6,7 +6,7 @@ use std::io::{self, BufRead, BufReader, Error, ErrorKind, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::Path;
 use std::sync::atomic::AtomicUsize;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{Receiver, channel};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{self, Duration};
@@ -15,7 +15,7 @@ use threadpool::ThreadPool;
 
 const MAX_CONNECTIONS: usize = 24;
 const REPORT_TIME: u64 = 1;
-const ADDRESS: &str = "127.0.0.1:8000";
+const ADDRESS: &str = "127.0.0.1:4000";
 const OUT_PATH: &str = "numbers.log";
 
 fn handle_connection(
@@ -61,18 +61,30 @@ fn handle_connection(
     Ok(false)
 }
 
-fn report(numbers: &Arc<Mutex<HashSet<u64>>>, duplicates: &Arc<Mutex<usize>>) {
+fn report(rx_finish: Receiver<bool>, numbers: &Arc<Mutex<HashSet<u64>>>, duplicates: &Arc<Mutex<usize>>, out_file: &Arc<Mutex<BufWriter<File>>>) {
     let mut prev_unique = 0;
+    let mut prev_duplicates = 0;
 
-    let deduplicates = numbers.lock().unwrap().len();
-    let news_unique = deduplicates - prev_unique;
-    let duplicates = *duplicates.lock().unwrap();
-    println!(
-        "Received {} unique numbers, {} duplicates. Unique total: {}",
-        news_unique, duplicates, deduplicates
-    );
+    loop {
+        if let Ok(_) = rx_finish.try_recv() {
+            break;
+        }
+        let uniques = numbers.lock().unwrap().len();
+        let duplicates = *duplicates.lock().unwrap();
 
-    prev_unique = news_unique;
+        let news_unique = uniques - prev_unique;
+        let new_duplicates = duplicates - prev_duplicates;
+        println!(
+            "Received {} unique numbers, {} duplicates. Unique total: {}",
+            news_unique, new_duplicates, uniques, 
+        );
+
+        prev_unique = uniques;
+        prev_duplicates = duplicates;
+
+        out_file.lock().unwrap().flush().unwrap();
+        thread::sleep(Duration::from_secs(REPORT_TIME));
+    }
 }
 
 fn main() -> io::Result<()> {
@@ -88,19 +100,15 @@ fn main() -> io::Result<()> {
     let listener = TcpListener::bind(ADDRESS)
         .expect(format!("Error creating TCP socket at {}", ADDRESS).as_str());
 
-    let mut terminate = false;
     let (tx, rx) = channel();
     let (tx_report, rx_report) = channel::<bool>();
 
     let report_numbers = Arc::clone(&numbers);
     let report_duplicates = Arc::clone(&duplicates);
-    let report_thread = thread::spawn(move || loop {
-        if let Ok(_) = rx_report.recv_timeout(Duration::from_millis(1)) {
-            break;
-        }
-        report(&report_numbers, &report_duplicates);
-        thread::sleep(Duration::from_secs(REPORT_TIME));
-    });
+    let report_outfile = Arc::clone(&out_file);
+    let report_thread = thread::spawn(move || 
+        report(rx_report, &report_numbers, &report_duplicates, &report_outfile)
+    );
 
     let pool = ThreadPool::new(MAX_CONNECTIONS);
 
@@ -117,7 +125,7 @@ fn main() -> io::Result<()> {
                 pool.execute(move || {
                     let terminate =
                         handle_connection(stream, numbers, out_file, duplicates).unwrap();
-                    tx.send(terminate).unwrap();
+                    if terminate { tx.send(terminate).unwrap(); }
                 });
             }
             Err(e) => {
@@ -125,8 +133,11 @@ fn main() -> io::Result<()> {
             }
         }
 
-        terminate = rx.recv().unwrap();
+        if let Ok(_) = rx.try_recv() {
+            break;
+        }
     }
+    println!("Connection thread end");
 
     tx_report
         .send(true)
@@ -136,12 +147,6 @@ fn main() -> io::Result<()> {
     report_thread.join().expect("Report thread panicked.");
 
     out_file.lock().unwrap().flush().unwrap();
-
-    for n in numbers.lock().unwrap().iter() {
-        print!("{}, ", n);
-    }
-
-    println!("end");
 
     Ok(())
 }

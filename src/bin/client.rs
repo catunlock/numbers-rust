@@ -2,6 +2,8 @@ use std::env;
 use std::io::prelude::*;
 use std::net::TcpStream;
 
+use flap_challenge::client;
+
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
@@ -14,12 +16,9 @@ fn main() -> std::io::Result<()> {
     let end = &args[3].parse::<u32>().expect("start range invalid");
     let increment = &args[4].parse::<u32>().expect("start range invalid");
 
-    for i in *start..*end {
-        let mut stream = TcpStream::connect(addr)?;
-        let i = (i * increment).to_string();
-        //println!("{}", i);
-        stream.write(i.as_bytes())?;
-    }
+    println!("Start sending numbers from {} to {} in increments of {}", start, end, increment);
+
+    client(addr, *start, *end, *increment)?;
 
     Ok(())
 } // the stream is closed here
