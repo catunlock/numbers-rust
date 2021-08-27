@@ -1,11 +1,10 @@
+use std::env;
 use std::io::prelude::*;
 use std::net::TcpStream;
-use std::env;
 
 fn main() -> std::io::Result<()> {
-
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 4 {
         println!("Usage: ./client <ip:port> <start> <end> <increment>");
     }
@@ -17,10 +16,10 @@ fn main() -> std::io::Result<()> {
 
     for i in *start..*end {
         let mut stream = TcpStream::connect(addr)?;
-        let i = (i*increment).to_string();
+        let i = (i * increment).to_string();
         //println!("{}", i);
         stream.write(i.as_bytes())?;
     }
-    
+
     Ok(())
 } // the stream is closed here
