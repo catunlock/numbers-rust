@@ -1,6 +1,4 @@
 use std::env;
-use std::io::prelude::*;
-use std::net::TcpStream;
 
 use flap_challenge::client;
 

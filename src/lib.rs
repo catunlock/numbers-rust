@@ -1,13 +1,10 @@
-use core::{num, panic};
-use std::collections::{HashMap, HashSet};
-use std::fmt::Result;
-use std::net::{Shutdown, TcpStream};
+use core::{panic};
+use std::collections::{HashMap};
+use std::net::{TcpStream};
 use std::io::{self, prelude::*};
 use std::fs::File;
 use std::io::{BufRead};
 use std::path::Path;
-use std::thread;
-use std::time::Duration;
 
 pub fn client(addr: &str, start: u32, end: u32, increment: u32) -> io::Result<()> {
     for i in start..end {
@@ -104,7 +101,7 @@ mod tests {
         let pool = ThreadPool::new(5);
 
         for i in 0..5 {
-            let t = pool.execute(move || {
+            let _ = pool.execute(move || {
                 client(ADDRESS, 100000*i, 100000*(i+1), 1).unwrap();
             });
         }

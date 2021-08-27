@@ -1,15 +1,14 @@
-use core::num;
+
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::BufWriter;
-use std::io::{self, BufRead, BufReader, Error, ErrorKind, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::io::{self, BufRead, BufReader, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::Path;
-use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc::{Receiver, channel};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
-use std::time::{self, Duration};
+use std::thread::{self};
+use std::time::{Duration};
 
 use threadpool::ThreadPool;
 
@@ -91,7 +90,7 @@ fn main() -> io::Result<()> {
     println!("Backend Challenge 2021!");
 
     let out_path = Path::new(OUT_PATH);
-    let mut out_file = BufWriter::new(File::create(&out_path).expect("Error opening creating file."));
+    let out_file = BufWriter::new(File::create(&out_path).expect("Error opening creating file."));
 
     let out_file = Arc::new(Mutex::new(out_file));
     let numbers = Arc::new(Mutex::new(HashSet::new()));
@@ -129,7 +128,7 @@ fn main() -> io::Result<()> {
                 });
             }
             Err(e) => {
-                println!("Error listening incomming connection.");
+                println!("Error listening incomming connection: {}", e);
             }
         }
 
